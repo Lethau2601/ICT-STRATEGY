@@ -1,9 +1,16 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Asset, ICTAnalysis } from "../types";
 
+const getApiKey = () => {
+  const key = process.env.API_KEY;
+  if (!key) {
+    console.error("API_KEY is missing. Please set it in your environment variables.");
+  }
+  return key || '';
+};
+
 export const analyzeAsset = async (asset: Asset): Promise<ICTAnalysis> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
   
   const prompt = `
     Perform a professional-grade ICT (Inner Circle Trader) analysis for the financial asset: ${asset}.
@@ -71,16 +78,20 @@ export const analyzeAsset = async (asset: Asset): Promise<ICTAnalysis> => {
     }
   });
 
+  if (!response.text) {
+    throw new Error("Empty response from AI engine.");
+  }
+
   return JSON.parse(response.text) as ICTAnalysis;
 };
 
 export const getStrategyExplanation = async (concept: string): Promise<string> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const ai = new GoogleGenAI({ apiKey: getApiKey() });
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: `Explain the ICT trading concept: "${concept}" for a trader in 2026. Focus on how to identify it on a chart for US30 or Gold. 
     Crucially, mention the specific time windows in South African Time (SAST/UTC+2) where this concept is most valid.
     Keep it professional, concise, and focused on institutional order flow as taught by the methodologies used by Lethau C. Use markdown.`
   });
-  return response.text;
+  return response.text || "No explanation generated.";
 };
