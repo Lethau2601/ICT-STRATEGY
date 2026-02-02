@@ -1,0 +1,86 @@
+
+import { GoogleGenAI, Type } from "@google/genai";
+import { Asset, ICTAnalysis } from "../types";
+
+export const analyzeAsset = async (asset: Asset): Promise<ICTAnalysis> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  
+  const prompt = `
+    Perform a professional-grade ICT (Inner Circle Trader) analysis for the financial asset: ${asset}.
+    
+    CRITICAL CONTEXT: 
+    - The current year is 2026. 
+    - Use price benchmarks and volatility profiles consistent with 2026 market dynamics.
+    - All time references MUST be provided in South African Time (SAST), which is UTC+2.
+    - Explicitly state the "executionTimeframe" (e.g., "5m", "15m", or "1h").
+    
+    Focus on:
+    1. Multi-Timeframe Bias (Weekly, Daily, 4H, 1H).
+    2. Detection of Fair Value Gaps (FVG) - indicate price levels (e.g., US30 around 48,000-50,000 levels).
+    3. Liquidity Pools (Buy-side and Sell-side liquidity zones).
+    4. Market Structure Shift (MSS) indicators.
+    5. A concrete trade execution plan.
+    
+    In the trade plan, specify the 'entryWindow' (e.g., "15:30 - 17:00 SAST") based on ICT Killzones converted to SAST.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-3-pro-preview",
+    contents: prompt,
+    config: {
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          bias: { type: Type.STRING, description: "BULLISH, BEARISH, or NEUTRAL" },
+          probability: { type: Type.NUMBER, description: "Confidence level between 0 and 100" },
+          timeframeBreakdown: {
+            type: Type.OBJECT,
+            properties: {
+              weekly: { type: Type.STRING },
+              daily: { type: Type.STRING },
+              fourHour: { type: Type.STRING },
+              oneHour: { type: Type.STRING }
+            },
+            required: ["weekly", "daily", "fourHour", "oneHour"]
+          },
+          keyZones: {
+            type: Type.OBJECT,
+            properties: {
+              fvg: { type: Type.ARRAY, items: { type: Type.STRING } },
+              liquidityPools: { type: Type.ARRAY, items: { type: Type.STRING } },
+              marketStructureShift: { type: Type.STRING }
+            },
+            required: ["fvg", "liquidityPools", "marketStructureShift"]
+          },
+          tradePlan: {
+            type: Type.OBJECT,
+            properties: {
+              entry: { type: Type.STRING },
+              stopLoss: { type: Type.STRING },
+              takeProfit: { type: Type.STRING },
+              entryWindow: { type: Type.STRING, description: "Optimal time to enter in South African Time (SAST)" },
+              executionTimeframe: { type: Type.STRING, description: "The specific chart timeframe for entry (e.g. 5m, 15m)" },
+              reasoning: { type: Type.STRING }
+            },
+            required: ["entry", "stopLoss", "takeProfit", "entryWindow", "executionTimeframe", "reasoning"]
+          }
+        },
+        required: ["bias", "probability", "timeframeBreakdown", "keyZones", "tradePlan"]
+      }
+    }
+  });
+
+  return JSON.parse(response.text) as ICTAnalysis;
+};
+
+export const getStrategyExplanation = async (concept: string): Promise<string> => {
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
+  const response = await ai.models.generateContent({
+    model: "gemini-3-flash-preview",
+    contents: `Explain the ICT trading concept: "${concept}" for a trader in 2026. Focus on how to identify it on a chart for US30 or Gold. 
+    Crucially, mention the specific time windows in South African Time (SAST/UTC+2) where this concept is most valid.
+    Keep it professional, concise, and focused on institutional order flow as taught by the methodologies used by Lethau C. Use markdown.`
+  });
+  return response.text;
+};
